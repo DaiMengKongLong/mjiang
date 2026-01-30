@@ -1,0 +1,20 @@
+{
+  "name": "mahjong-server-test-client",
+  "version": "1.0.0",
+  "description": "麻将服务器测试客户端",
+  "main": "test_client.js",
+  "scripts": {
+    "test": "node test_client.js",
+    "test:multi": "./test_multi_clients.sh"
+  },
+  "keywords": [
+    "mahjong",
+    "websocket",
+    "test"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.19.0"
+  }
+}

@@ -1,0 +1,47 @@
+# 构建目录
+build/
+server/build/
+client/build/
+
+# 编译产物
+*.o
+*.a
+*.so
+*.dylib
+*.exe
+*.dll
+mahjong_server
+mahjong_server_ws
+
+# IDE 文件
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json
+yarn.lock
+
+# 日志文件
+*.log
+
+# 临时文件
+*.tmp
+*.bak
+*.backup
+
+# 系统文件
+Thumbs.db
+.DS_Store
