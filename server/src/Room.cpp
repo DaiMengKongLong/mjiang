@@ -1,8 +1,10 @@
 #include "Room.h"
 #include "NetPlayer.h"
+#include "game/GameEngine.h"
 
 #include <iostream>
 #include <algorithm>
+#include <memory>
 
 Room::Room(const std::string& id)
     : roomId_(id)
@@ -127,7 +129,7 @@ std::shared_ptr<NetPlayer> Room::getPlayerById(const std::string& playerId) cons
     return nullptr;
 }
 
-void Room::startGameMock() {
+void Room::startGame() {
     std::lock_guard<std::mutex> lock(mutex_);
     
     if (state_ != RoomState::WAITING) {
@@ -143,7 +145,41 @@ void Room::startGameMock() {
     state_ = RoomState::PLAYING;
     std::cout << "[Room] 开始游戏: room=" << roomId_
               << ", players=" << players_.size() << std::endl;
-    // TODO: 后续在这里接入真正 GameEngine 的创建与发牌逻辑。
+    
+#ifdef USE_GAME_ENGINE
+    // 创建 GameEngine（不使用单例，每个房间一个实例）
+    // 注意：C++11 没有 make_unique，使用 new
+    gameEngine_ = std::unique_ptr<GameEngine>(new GameEngine());
+    gameEngine_->init();
+    
+    // 注册玩家到 GameEngine
+    for (size_t i = 0; i < players_.size(); i++) {
+        auto player = players_[i];
+        if (player) {
+            // 设置玩家的事件监听器
+            player->setGameEngineEventListener(player.get());
+            // 注册玩家到 GameEngine
+            gameEngine_->onUserEnter(player.get());
+        }
+    }
+    
+    // 启动游戏
+    if (gameEngine_->onGameStart()) {
+        std::cout << "[Room] 游戏启动成功" << std::endl;
+    } else {
+        std::cout << "[Room] 游戏启动失败" << std::endl;
+        state_ = RoomState::WAITING;
+        gameEngine_.reset();
+    }
+#else
+    // 未启用 GameEngine，使用模拟版本
+    std::cout << "[Room] 使用模拟游戏逻辑" << std::endl;
+#endif
+}
+
+void Room::startGameMock() {
+    // 调用新的 startGame 方法
+    startGame();
 }
 
 void Room::finishGame() {

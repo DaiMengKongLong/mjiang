@@ -8,6 +8,7 @@
 #include "Room.h"
 #include "NetPlayer.h"
 #include "JsonHelper.h"
+#include "game/GameLogic.h"  // 用于 WIK_* 常量
 #include <iostream>
 #include <sstream>
 #include <algorithm>
@@ -67,8 +68,8 @@ void MessageHandler::handleJoinRoom(int clientFd, const std::string& jsonText) {
     
     auto room = getOrCreateRoom_(roomId);
     
-    // 创建 NetPlayer
-    auto player = std::make_shared<NetPlayer>(playerId);
+    // 创建 NetPlayer（需要 clientFd 和 server 指针）
+    auto player = std::make_shared<NetPlayer>(playerId, clientFd, server_);
     player->setNickname(nickname);
     
     // 添加到房间（Room 会自动分配座位）
@@ -110,6 +111,7 @@ void MessageHandler::handleJoinRoom(int clientFd, const std::string& jsonText) {
 }
 
 void MessageHandler::handlePlayCard(int clientFd, const std::string& jsonText) {
+    // 获取客户端信息
     std::lock_guard<std::mutex> lock(clientsMutex_);
     auto it = clients_.find(clientFd);
     if (it == clients_.end()) {
@@ -117,20 +119,54 @@ void MessageHandler::handlePlayCard(int clientFd, const std::string& jsonText) {
         return;
     }
     
+    auto room = it->second.room;
+    if (!room) {
+        sendError(clientFd, "ROOM_NOT_FOUND", "房间不存在");
+        return;
+    }
+    
+    // 检查房间状态
+    if (room->getState() != RoomState::PLAYING) {
+        sendError(clientFd, "ROOM_NOT_PLAYING", "房间不在游戏中");
+        return;
+    }
+    
+    // 获取出牌数据
     int card = JsonHelper::getInt(jsonText, "card");
+    if (card < 0 || card > 255) {
+        sendError(clientFd, "INVALID_CARD", "无效的牌");
+        return;
+    }
+    
+#ifdef USE_GAME_ENGINE
+    // 调用 GameEngine 的出牌方法
+    auto gameEngine = room->getGameEngine();
+    if (!gameEngine) {
+        sendError(clientFd, "GAME_ENGINE_ERROR", "游戏引擎未初始化");
+        return;
+    }
+    
+    CMD_C_OutCard outCard;
+    outCard.cbCardData = static_cast<uint8_t>(card);
+    
+    if (gameEngine->onUserOutCard(outCard)) {
+        std::cout << "[MessageHandler] 玩家出牌成功: playerId=" << it->second.playerId 
+                  << ", card=" << card << std::endl;
+    } else {
+        sendError(clientFd, "PLAY_CARD_FAILED", "出牌失败");
+    }
+#else
+    // 未启用 GameEngine，使用简化版
     std::cout << "[MessageHandler] 玩家出牌: playerId=" << it->second.playerId 
               << ", seat=" << it->second.seat << ", card=" << card << std::endl;
-    
-    // 简化版：直接广播给所有玩家（实际应该通过 Room/GameEngine 处理）
-    // 这里只向当前客户端发送确认
     std::string response = R"({"type":"player_play_card","seat":)" + std::to_string(it->second.seat)
                           + R"(,"card":)" + std::to_string(card) + "}";
     server_->sendText(clientFd, response);
-    
-    // TODO: 实际应该通过 Room 广播给所有玩家，并触发游戏逻辑
+#endif
 }
 
 void MessageHandler::handleChooseAction(int clientFd, const std::string& jsonText) {
+    // 获取客户端信息
     std::lock_guard<std::mutex> lock(clientsMutex_);
     auto it = clients_.find(clientFd);
     if (it == clients_.end()) {
@@ -138,19 +174,64 @@ void MessageHandler::handleChooseAction(int clientFd, const std::string& jsonTex
         return;
     }
     
+    auto room = it->second.room;
+    if (!room) {
+        sendError(clientFd, "ROOM_NOT_FOUND", "房间不存在");
+        return;
+    }
+    
+    // 检查房间状态
+    if (room->getState() != RoomState::PLAYING) {
+        sendError(clientFd, "ROOM_NOT_PLAYING", "房间不在游戏中");
+        return;
+    }
+    
+    // 获取动作和牌
     std::string action = JsonHelper::getString(jsonText, "action");
     int card = JsonHelper::getInt(jsonText, "card");
     
+    // 转换动作字符串到操作码
+    uint8_t operateCode = 0;
+    if (action == "PENG") {
+        operateCode = WIK_P;
+    } else if (action == "GANG") {
+        operateCode = WIK_G;
+    } else if (action == "HU") {
+        operateCode = WIK_H;
+    } else if (action == "GUO") {
+        operateCode = WIK_NULL;
+    } else {
+        sendError(clientFd, "INVALID_ACTION", "无效的动作");
+        return;
+    }
+    
+#ifdef USE_GAME_ENGINE
+    // 调用 GameEngine 的操作方法
+    auto gameEngine = room->getGameEngine();
+    if (!gameEngine) {
+        sendError(clientFd, "GAME_ENGINE_ERROR", "游戏引擎未初始化");
+        return;
+    }
+    
+    CMD_C_OperateCard operateCard;
+    operateCard.cbOperateUser = static_cast<uint8_t>(it->second.seat);
+    operateCard.cbOperateCode = operateCode;
+    operateCard.cbOperateCard = static_cast<uint8_t>(card);
+    
+    if (gameEngine->onUserOperateCard(operateCard)) {
+        std::cout << "[MessageHandler] 玩家选择动作成功: playerId=" << it->second.playerId 
+                  << ", action=" << action << ", card=" << card << std::endl;
+    } else {
+        sendError(clientFd, "ACTION_FAILED", "动作执行失败");
+    }
+#else
+    // 未启用 GameEngine，使用简化版
     std::cout << "[MessageHandler] 玩家选择动作: playerId=" << it->second.playerId 
               << ", action=" << action << ", card=" << card << std::endl;
-    
-    // 简化版：只打印日志，实际应该通过 Room/GameEngine 处理
-    // TODO: 根据 action 执行相应的游戏逻辑（碰、杠、胡、过）
-    
-    // 发送确认（简化版）
     std::string response = R"({"type":"action_confirmed","action":")" + action 
                           + R"(","card":)" + std::to_string(card) + "}";
     server_->sendText(clientFd, response);
+#endif
 }
 
 void MessageHandler::sendRoomInfo(int clientFd, std::shared_ptr<Room> room) {

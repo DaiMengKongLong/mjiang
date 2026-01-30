@@ -11,6 +11,10 @@
 
 class NetPlayer;
 
+#ifdef USE_GAME_ENGINE
+#include "game/GameEngine.h"
+#endif
+
 enum class RoomState {
     WAITING,    // 等待玩家加入
     PLAYING,    // 游戏中
@@ -43,11 +47,19 @@ public:
     bool removePlayer(const std::string& playerId);
     bool removePlayerBySeat(int seat);
 
-    // 启动一局游戏（后续接入 GameEngine）
+    // 启动一局游戏（使用 GameEngine）
+    void startGame();
+    
+    // 启动一局游戏（模拟版本，已废弃）
     void startGameMock();
     
     // 结束游戏
     void finishGame();
+    
+#ifdef USE_GAME_ENGINE
+    // 获取 GameEngine（用于出牌等操作）
+    GameEngine* getGameEngine() { return gameEngine_.get(); }
+#endif
 
 private:
     std::string roomId_;
@@ -55,5 +67,8 @@ private:
     std::vector<std::shared_ptr<NetPlayer>> players_;
     std::map<int, std::shared_ptr<NetPlayer>> playersBySeat_;  // 座位号 -> 玩家映射
     mutable std::mutex mutex_;  // 保护房间数据的互斥锁
+#ifdef USE_GAME_ENGINE
+    std::unique_ptr<GameEngine> gameEngine_;  // 游戏引擎
+#endif
 };
 
