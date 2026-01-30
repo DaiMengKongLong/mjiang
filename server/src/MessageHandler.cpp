@@ -91,18 +91,13 @@ void MessageHandler::handleJoinRoom(int clientFd, const std::string& jsonText) {
     // 向所有玩家发送更新后的房间信息
     sendRoomInfoToAll(room);
     
-    // 如果房间有 4 个玩家，自动开始游戏（简化版）
+    // 如果房间有 4 个玩家，自动开始游戏
     if (room->getPlayerCount() >= 4) {
         std::cout << "[MessageHandler] 房间已满，开始游戏" << std::endl;
-        room->startGameMock();
+        room->startGame();  // 使用真实的 GameEngine 启动游戏
         
-        // 向所有玩家发送发牌消息（假数据）
-        // 这里简化处理，只向当前客户端发送
-        std::string dealCards = R"({"type":"deal_cards","seat":)" + std::to_string(seat) 
-                              + R"(,"handCards":[1,2,3,4,5,6,7,8,9,10,11,12,13]})";
-        server_->sendText(clientFd, dealCards);
-        
-        // 发送轮到你出牌的消息（简化版：总是让 seat 0 先出）
+        // 注意：游戏开始后，GameEngine 会自动通过 NetPlayer 的事件监听器
+        // 发送 game_start 和 deal_cards 消息，这里不需要手动发送假数据
         if (seat == 0) {
             std::string yourTurn = R"({"type":"your_turn","allowedActions":["PLAY_CARD"]})";
             server_->sendText(clientFd, yourTurn);
