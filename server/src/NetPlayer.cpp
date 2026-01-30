@@ -32,10 +32,13 @@ bool NetPlayer::onGameStartEvent(CMD_S_GameStart GameStart) {
         << R"(,"cards":[)";
     
     // 发送手牌（只发送当前玩家的牌）
+    // cbCardData 格式：[玩家0的13张, 玩家1的13张, 玩家2的13张, 玩家3的13张]
     bool first = true;
+    int startIndex = static_cast<int>(seat_) * MAX_COUNT;
     for (int i = 0; i < MAX_COUNT; i++) {
-        uint8_t card = GameStart.cbCardData[seat_ * MAX_COUNT + i];
-        if (card > 0) {
+        uint8_t card = GameStart.cbCardData[startIndex + i];
+        // 只发送有效的牌（0-33 范围，0表示空位）
+        if (card > 0 && card <= 33) {
             if (!first) oss << ",";
             oss << static_cast<int>(card);
             first = false;
