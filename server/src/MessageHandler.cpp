@@ -155,7 +155,23 @@ void MessageHandler::handleChooseAction(int clientFd, const std::string& jsonTex
 
 void MessageHandler::sendRoomInfo(int clientFd, std::shared_ptr<Room> room) {
     std::ostringstream oss;
-    oss << R"({"type":"room_info","roomId":")" << room->getId() << R"(","players":[)";
+    
+    // 获取房间状态字符串
+    std::string stateStr;
+    switch (room->getState()) {
+        case RoomState::WAITING:
+            stateStr = "WAITING";
+            break;
+        case RoomState::PLAYING:
+            stateStr = "PLAYING";
+            break;
+        case RoomState::FINISHED:
+            stateStr = "FINISHED";
+            break;
+    }
+    
+    oss << R"({"type":"room_info","roomId":")" << room->getId() 
+        << R"(","state":")" << stateStr << R"(","players":[)";
     
     auto players = room->getPlayers();  // 获取玩家列表的副本（线程安全）
     bool first = true;
@@ -172,9 +188,24 @@ void MessageHandler::sendRoomInfo(int clientFd, std::shared_ptr<Room> room) {
 }
 
 void MessageHandler::sendRoomInfoToAll(std::shared_ptr<Room> room) {
+    // 获取房间状态字符串
+    std::string stateStr;
+    switch (room->getState()) {
+        case RoomState::WAITING:
+            stateStr = "WAITING";
+            break;
+        case RoomState::PLAYING:
+            stateStr = "PLAYING";
+            break;
+        case RoomState::FINISHED:
+            stateStr = "FINISHED";
+            break;
+    }
+    
     // 构建房间信息 JSON
     std::ostringstream oss;
-    oss << R"({"type":"room_info","roomId":")" << room->getId() << R"(","players":[)";
+    oss << R"({"type":"room_info","roomId":")" << room->getId() 
+        << R"(","state":")" << stateStr << R"(","players":[)";
     
     const auto& players = room->getPlayers();
     bool first = true;
