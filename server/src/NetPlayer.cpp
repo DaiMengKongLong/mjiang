@@ -32,17 +32,30 @@ bool NetPlayer::onGameStartEvent(CMD_S_GameStart GameStart) {
         << R"(,"cards":[)";
     
     // 发送手牌（只发送当前玩家的牌）
-    // cbCardData 格式：[玩家0的13张, 玩家1的13张, 玩家2的13张, 玩家3的13张]
+    // 注意：GameEngine 在 onGameStart 中，对每个玩家调用 onGameStartEvent 时，
+    // GameStart.cbCardData 的前 MAX_COUNT 个位置就是当前玩家的手牌
+    // 牌的编码格式：0x01-0x09(筒), 0x11-0x19(万), 0x21-0x29(条), 0x31-0x37(番)
+    // 即 1-9, 17-25, 33-41, 49-55 (十进制)
     bool first = true;
-    int startIndex = static_cast<int>(seat_) * MAX_COUNT;
+    int validCardCount = 0;
     for (int i = 0; i < MAX_COUNT; i++) {
-        uint8_t card = GameStart.cbCardData[startIndex + i];
-        // 只发送有效的牌（0-33 范围，0表示空位）
-        if (card > 0 && card <= 33) {
+        uint8_t card = GameStart.cbCardData[i];
+        // 检查是否为有效牌（麻将牌范围：0x01-0x37，即 1-55）
+        // 0x00 表示空位，0x38-0xFF 为无效值
+        if (card >= 0x01 && card <= 0x37) {
             if (!first) oss << ",";
             oss << static_cast<int>(card);
             first = false;
+            validCardCount++;
+        } else if (card == 0) {
+            // 0 表示空位，跳过
+            break;  // 遇到第一个 0，后面的都是空位
         }
+    }
+    
+    // 调试信息
+    if (validCardCount == 0) {
+        std::cout << "[NetPlayer] 警告：玩家 " << playerId_ << " 未收到有效手牌" << std::endl;
     }
     
     oss << "]}";
