@@ -97,11 +97,8 @@ void MessageHandler::handleJoinRoom(int clientFd, const std::string& jsonText) {
         room->startGame();  // 使用真实的 GameEngine 启动游戏
         
         // 注意：游戏开始后，GameEngine 会自动通过 NetPlayer 的事件监听器
-        // 发送 game_start 和 deal_cards 消息，这里不需要手动发送假数据
-        if (seat == 0) {
-            std::string yourTurn = R"({"type":"your_turn","allowedActions":["PLAY_CARD"]})";
-            server_->sendText(clientFd, yourTurn);
-        }
+        // 发送 game_start、deal_cards 和 your_turn 等所有消息
+        // 这里不需要手动发送任何消息
     }
 }
 
